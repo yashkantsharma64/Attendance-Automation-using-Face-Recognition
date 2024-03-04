@@ -1,0 +1,11 @@
+streamlit
+numpy
+face_recognition
+cv2
+datetime
+time
+pyrebase
+pandas
+os
+plotly.graph_objects
+plotly.express
