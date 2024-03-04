@@ -2,10 +2,6 @@ streamlit
 numpy
 face_recognition
 opencv-python
-datetime
-time
-pyrebase
-pandas
-os
-plotly.graph_objects
-plotly.express
+pyrebase4
+plotly
+plotly-express
