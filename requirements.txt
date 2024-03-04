@@ -1,7 +1,7 @@
 streamlit
 numpy
 face_recognition
-cv2
+opencv-python
 datetime
 time
 pyrebase
