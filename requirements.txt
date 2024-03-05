@@ -1,7 +1,7 @@
 streamlit
 numpy
 face_recognition @ git+https://github.com/yashkantsharma64/face_recognition-using-precompiled-dlib
-opencv-python
+opencv-python-headless
 pyrebase4
 plotly
 plotly-express
