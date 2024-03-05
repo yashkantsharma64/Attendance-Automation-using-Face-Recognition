@@ -1,76 +1,44 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-import face_recognition
+from streamlit_webrtc import webrtc_streamer, RTCConfiguration
+import av
 import cv2
-import datetime
-import time
+import face_recognition
 import os
+import streamlit as st
+import numpy as np
+import datetime
+import pandas as pd
 import pyrebase
 
 
-def face_rec():
-    known_encodings = []
-    known_names = []
-    known_images_dir = 'known_face_encodings'
-    frame_placeholder = st.empty()
+class VideoProcessor:
+    def recv(self, frame):
+        frm = frame.to_ndarray(format="bgr24")
 
-    for file in os.listdir(known_images_dir):
-        array = np.load(os.path.join(known_images_dir, file))
-        known_encodings.append(array)
-        known_names.append(file.split('.')[0])
-    
-    cap = cv2.VideoCapture(0)
-    face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
-    t0 = time.time()
-    attendance_marked = False
-    while (cap.isOpened()):
-        ret, frame = cap.read()
-        if not ret:
-            break
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        text = str(datetime.datetime.now())
-        frame = cv2.putText(frame, text, (10, 13), font, 0.5, (0,255,0), 1, cv2.LINE_AA)
+        faces = cascade.detectMultiScale(cv2.cvtColor(frm, cv2.COLOR_BGR2GRAY), 1.1, 4)
 
-        # Converting BGR image to Gray scale image
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = face_cascade.detectMultiScale(gray, 1.1, 4)
-        frame_copy = frame.copy()
-        for(x, y, w, h) in faces:
-            cv2.rectangle(frame_copy, (x, y), (x+w, y+h), (0, 255, 0), 2)
-
-        # Displaying Frame
-        frame_copy = cv2.cvtColor(frame_copy, cv2.COLOR_BGR2RGB)
-        frame_placeholder.image(frame_copy, channels ="RGB")
-
-        # Generating face_encodings of the current frame
-        encodings = face_recognition.face_encodings(frame)[0]
-
+        for x, y, w, h in faces:
+            cv2.rectangle(frm, (x, y), (x+w, y+h), (0, 255, 0), 2)
+        encodings = face_recognition.face_encodings(frm)[0]
         # Comparing the encodings to the known encodings.
         results = face_recognition.compare_faces(known_encodings, encodings)
-
         idx = 0
+        attendance_marked = False
         try:
             for i in range(len(results)):
                 if results[i]:
-                    # (top, right, bottom, left) = face_recognition.face_locations(frame)[0]
                     attendance_marked = True
                     idx = i           
         except:
-            break
-        t1 = time.time()
-        if t1-t0 > 5:
-            break
-        cv2.waitKey(1) & 0xFF
-    if attendance_marked:
-        mark_attendance(known_names[idx])
-    else:
-        print("Failed to detect face! try again.")
-    print(results)
-    cap.release()
-    cv2.destroyAllWindows()
+            st.write("Could not recognize face from the dataset!")
+        
+        if attendance_marked:
+            mark_attendance(known_names[idx])
+        else:
+            st.warning("Failed to detect face! try again.")
+        print("Face recognition results:", results)
+        return av.VideoFrame.from_ndarray(frm, format='bgr24')
 
-# Maring attendance function
+
 def mark_attendance(name):
     with open('attendance.csv', 'r+') as file:
         lines = file.readlines()
@@ -93,7 +61,21 @@ def mark_attendance(name):
     file.close()
 
 
+
+
 #main
+cascade = cv2.CascadeClassifier("haarcascade_frontalface_default.xml")
+known_encodings = []
+known_names = []
+known_images_dir = 'known_face_encodings'
+
+for file in os.listdir(known_images_dir):
+    array = np.load(os.path.join(known_images_dir, file))
+    known_encodings.append(array)
+    known_names.append(file.split('.')[0])
+
+
+
 firebaseConfig = {
   'apiKey': "AIzaSyCuNoXmU_YUMFGCPE4EkuzeN2f8V0wG8rg",
   'authDomain': "attendance-automation-data.firebaseapp.com",
@@ -151,24 +133,23 @@ if st.session_state.runpage:
         #Student
         else:
             st.header("Attendance")
-            a = st.button("Mark Attendance", key='b1')
-            if a:
-                try:
-                    face_rec()
-                except:
-                    st.warning("Failed to detect face! Try again in a well lit environment.")
-                with open("attendance.csv", 'r') as file:
-                    reader = file.readlines()
-                    for line in reader:
-                        k = line.split(',')
-                        current_date = datetime.date.today().strftime("%Y-%m-%d")
-                        for parent in db.get().each():
-                            dat = db.child('/'+parent.key()).get()
-                            for entry in dat.each():
-                                if entry.key() == 'Name' and k[0] == entry.val():
-                                    db.child(parent.key()).child("Dates").child(current_date).set("Present") 
-                                    break                   # Exit loop if found
-                file.close()
+            webrtc_streamer(key="key", video_processor_factory=VideoProcessor,
+                rtc_configuration=RTCConfiguration(
+                    {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+                    )
+            )
+            with open("attendance.csv", 'r') as file:
+                reader = file.readlines()
+                for line in reader:
+                    k = line.split(',')
+                    current_date = datetime.date.today().strftime("%Y-%m-%d")
+                    for parent in db.get().each():
+                        dat = db.child('/'+parent.key()).get()
+                        for entry in dat.each():
+                            if entry.key() == 'Name' and k[0] == entry.val():
+                                db.child(parent.key()).child("Dates").child(current_date).set("Present") 
+                                break                   # Exit loop if found
+            file.close()
     f.close()
 else:
     st.warning("Please Login/SignUp")
