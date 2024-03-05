@@ -5,3 +5,5 @@ opencv-python-headless
 pyrebase4
 plotly
 plotly-express
+streamlit_webrtc
+av
