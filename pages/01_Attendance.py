@@ -134,6 +134,7 @@ if st.session_state.runpage:
         else:
             st.header("Attendance")
             webrtc_streamer(key="key", video_processor_factory=VideoProcessor,
+                media_stream_constraints={"video": True, "audio": False},
                 rtc_configuration=RTCConfiguration(
                     {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
                     )
